@@ -1,0 +1,26 @@
+{
+  "name": "apollo-link-firestore",
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StephenCodesThings/apollo-link-firestore.git"
+  },
+  "author": "Stephen Bennett <stmbenn@gmail.com> (https://twitter.com/StephenSaysThis)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/StephenCodesThings/apollo-link-firestore/issues"
+  },
+  "homepage": "https://github.com/StephenCodesThings/apollo-link-firestore#readme",
+  "devDependencies": {
+    "typescript": "^2.8.3"
+  },
+  "dependencies": {
+    "apollo-link": "^1.2.2"
+  }
+}
