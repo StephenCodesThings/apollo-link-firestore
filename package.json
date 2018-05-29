@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "ts-node node_modules/jasmine/bin/jasmine"
   },
   "repository": {
     "type": "git",
@@ -18,9 +19,15 @@
   },
   "homepage": "https://github.com/StephenCodesThings/apollo-link-firestore#readme",
   "devDependencies": {
+    "@types/jasmine": "^2.8.6",
+    "apollo-link": "^1.2.2",
+    "apollo-utilities": "^1.0.11",
+    "firebase": "^5.0.3",
+    "graphql": "^0.13.2",
+    "graphql-tag": "^2.9.1",
+    "jasmine": "^3.1.0",
+    "ts-node": "^6.0.0",
+    "tslint": "^5.9.1",
     "typescript": "^2.8.3"
-  },
-  "dependencies": {
-    "apollo-link": "^1.2.2"
   }
 }
