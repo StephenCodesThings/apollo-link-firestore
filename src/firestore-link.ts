@@ -4,7 +4,7 @@ import {
 } from "apollo-utilities";
 import { firestore } from "firebase";
 import { DocumentNode, execute } from "graphql";
-import { createFullSchema, createResolvers } from "./graphql-utils";
+import { createFullSchema } from "./graphql-utils";
 
 export interface Options {
   database: firestore.Firestore;
@@ -14,7 +14,6 @@ export interface Options {
 export function createFirestoreLink({ database, partialSchema }: Options) {
 
   const schema = createFullSchema(partialSchema);
-  const rootResolver = createResolvers(partialSchema);
 
   return new ApolloLink((operation, forward) => {
 
@@ -26,12 +25,13 @@ export function createFirestoreLink({ database, partialSchema }: Options) {
 
     const { query, variables, operationName } = operation;
     const context = { database };
+    const rootValue = {};
 
     return new Observable((observer) => {
       const result = execute(
         schema,
         query,
-        rootResolver,
+        rootValue,
         context,
         variables,
         operationName,

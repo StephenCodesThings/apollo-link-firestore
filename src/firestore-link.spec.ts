@@ -23,6 +23,7 @@ describe("ApolloLinkFirestore", () => {
             partialSchema: gql`
                 type Person {
                     id: ID!
+                    name: String!
                 }
             `,
         });
