@@ -38,7 +38,7 @@ export function createFirestoreLink({ database, partialSchema }: Options) {
       );
 
       result.then((data: any) => {
-        observer.next({ data });
+        observer.next(data);
         observer.complete();
       })
       .catch((err: any) => {
