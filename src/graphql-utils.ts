@@ -14,6 +14,10 @@ import {
   TypeNode,
 } from "graphql";
 
+import { PubSub } from "graphql-subscriptions";
+
+export const pubsub = new PubSub();
+
 export function createFullSchema(partialSchema: DocumentNode): GraphQLSchema {
 
   const typeMapping: any = {
@@ -103,8 +107,42 @@ export function createFullSchema(partialSchema: DocumentNode): GraphQLSchema {
     },
   });
 
+  const subscriptionType = new GraphQLObjectType({
+    name: "Subscription",
+    fields: () => {
+      const fields: any = {};
+      for (const definition of partialSchema.definitions) {
+        if (definition.kind === "ObjectTypeDefinition") {
+          const typename = definition.name.value;
+          fields[`${typename.toLowerCase()}Updated`] = {
+            type: typeMapping[typename],
+            args: {
+              id: { type: GraphQLID },
+            },
+            subscribe: (_: any, { id }: any, context: any) => {
+              const topic = `${typename.toLowerCase()}Updated:${id}`;
+              const iterator = pubsub.asyncIterator(topic);
+
+              context.database.collection(typename).doc(id)
+                .onSnapshot((doc: any) => {
+                  pubsub.publish(topic, {
+                    id,
+                    ...doc.data(),
+                  });
+                });
+
+              return iterator;
+            },
+          };
+        }
+      }
+      return fields;
+    },
+  });
+
   return new GraphQLSchema({
     query: queryType,
     mutation: mutationType,
+    subscription: subscriptionType,
   });
 }

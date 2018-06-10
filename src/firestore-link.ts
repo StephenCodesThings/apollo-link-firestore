@@ -1,9 +1,15 @@
 import { ApolloLink, Observable } from "apollo-link";
 import {
+  getMainDefinition,
   hasDirectives,
 } from "apollo-utilities";
 import { firestore } from "firebase";
-import { DocumentNode, execute } from "graphql";
+import {
+  createSourceEventStream,
+  DocumentNode,
+  execute,
+  OperationTypeNode,
+} from "graphql";
 import { createFullSchema } from "./graphql-utils";
 
 export interface Options {
@@ -26,7 +32,26 @@ export function createFirestoreLink({ database, partialSchema }: Options) {
     const { query, variables, operationName } = operation;
     const context = { database };
     const rootValue = {};
-
+    const mainDefinition = getMainDefinition(query);
+    const operationType: OperationTypeNode =
+      mainDefinition.kind === "OperationDefinition" ? mainDefinition.operation : "query";
+    if (operationType === "subscription") {
+      return new Observable((observer) => {
+        createSourceEventStream(
+          schema,
+          query,
+          rootValue,
+          context,
+          variables,
+          operationName,
+        )
+        .then(async (iterator) => {
+          for await (const data of iterator) {
+            observer.next({ data });
+          }
+        });
+      });
+    }
     return new Observable((observer) => {
       const result = execute(
         schema,
@@ -36,7 +61,6 @@ export function createFirestoreLink({ database, partialSchema }: Options) {
         variables,
         operationName,
       );
-
       result.then((data: any) => {
         observer.next({ data });
         observer.complete();
