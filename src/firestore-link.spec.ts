@@ -13,10 +13,11 @@ describe("ApolloLinkFirestore", () => {
 
     beforeEach(() => {
         database = jasmine.createSpyObj("db", ["collection"]);
-        collection = jasmine.createSpyObj("collection", ["doc"]);
+        collection = jasmine.createSpyObj("collection", ["doc", "add"]);
         doc = jasmine.createSpyObj("doc", ["get", "onSnapshot"]);
         database.collection.and.returnValue(collection);
         collection.doc.and.returnValue(doc);
+        collection.add.and.returnValue(Promise.resolve(null));
         doc.get.and.returnValue(Promise.resolve(null));
         doc.onSnapshot.and.callFake((callback: any) => callback(null));
 
@@ -51,9 +52,23 @@ describe("ApolloLinkFirestore", () => {
         const operation = {
             query: gql`query { person(id: "id") @firestore { name } }`,
         };
+        doc.get.and.returnValue(Promise.resolve({ exists: true, data: () => ({ name: "Bob" })}));
 
-        await makePromise(execute(link, operation));
-        expect(database.collection).toHaveBeenCalled();
+        const result = await makePromise(execute(link, operation));
+        expect(doc.get).toHaveBeenCalled();
+        expect(result).toEqual({ data: { person: { name: "Bob" } } });
+    });
+
+    it("should mutate information in firestore", async () => {
+        const operation = {
+            query: gql`mutation CreatePerson { createPerson(input: { name: "Bob" }) @firestore { name } }`,
+        };
+
+        collection.add.and.returnValue(Promise.resolve({ id: "foo" }));
+
+        const result = await makePromise(execute(link, operation));
+        expect(collection.add).toHaveBeenCalled();
+        expect(result).toEqual({ data: { createPerson: { name: "Bob" } } });
     });
     it ("should subscribe to updates", async () => {
         const operation = {

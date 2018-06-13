@@ -1,8 +1,10 @@
+import { firestore } from "firebase";
 import {
   DocumentNode,
   GraphQLBoolean,
   GraphQLFloat,
   GraphQLID,
+  GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -10,9 +12,13 @@ import {
   GraphQLSchema,
   GraphQLString,
   GraphQLType,
+  isLeafType,
   ObjectTypeDefinitionNode,
   TypeNode,
 } from "graphql";
+interface Context {
+  database: firestore.Firestore;
+}
 
 import { PubSub } from "graphql-subscriptions";
 
@@ -20,13 +26,22 @@ export const pubsub = new PubSub();
 
 export function createFullSchema(partialSchema: DocumentNode): GraphQLSchema {
 
-  const typeMapping: any = {
+  const typeMapping: { [key: string]: GraphQLType } = {
     String: GraphQLString,
     Int: GraphQLInt,
     ID: GraphQLID,
     Boolean: GraphQLBoolean,
     Float: GraphQLFloat,
   };
+  const objectDefinitions: { [key: string]: ObjectTypeDefinitionNode } = {};
+
+  function getBaseType(type: TypeNode): GraphQLType {
+    if (type.kind === "NonNullType" || type.kind === "ListType") {
+      return getBaseType(type.type);
+    } else {
+      return typeMapping[type.name.value];
+    }
+  }
 
   function createFieldType(type: TypeNode): GraphQLType {
     if (type.kind === "NonNullType") {
@@ -40,6 +55,7 @@ export function createFullSchema(partialSchema: DocumentNode): GraphQLSchema {
 
   function createObjectType(definition: ObjectTypeDefinitionNode) {
     const typename = definition.name.value;
+    objectDefinitions[typename] = definition;
 
     if (!typeMapping[typename]) {
       typeMapping[typename] = new GraphQLObjectType({
@@ -54,6 +70,58 @@ export function createFullSchema(partialSchema: DocumentNode): GraphQLSchema {
       });
     }
     return typeMapping[typename];
+  }
+
+  function createInputFieldType(type: TypeNode): GraphQLType {
+    if (type.kind === "NonNullType") {
+      return new GraphQLNonNull(createFieldType(type.type));
+    } else if (type.kind === "ListType") {
+      return new GraphQLList(createFieldType(type.type));
+    } else {
+      const baseType = typeMapping[type.name.value];
+      if (isLeafType(baseType)) {
+        return baseType;
+      }
+      return createInputObjectType(objectDefinitions[type.name.value]);
+    }
+  }
+
+  function createInputObjectType(definition: ObjectTypeDefinitionNode): GraphQLInputObjectType {
+    const typename = definition.name.value;
+
+    const fields: any = {};
+    for (const field of definition.fields) {
+      const baseType = getBaseType(field.type);
+      if (isLeafType(baseType) && baseType !== GraphQLID) {
+        fields[field.name.value] = { type: createInputFieldType(field.type) };
+      }
+    }
+    const inputType = new GraphQLInputObjectType({
+      name: `Create${typename}Input`,
+      fields,
+    });
+
+    return inputType;
+  }
+
+  function createCreateMutation(definition: ObjectTypeDefinitionNode) {
+    const typename = definition.name.value;
+
+    const inputType = createInputObjectType(definition);
+
+    return {
+      type: typeMapping[typename],
+      args: {
+        input: { type: inputType },
+      },
+      async resolve(_: any, { input }: any, context: Context) {
+        const result = await context.database.collection(typename).add(input);
+        return {
+          id: result.id,
+          ...input,
+        };
+      },
+    };
   }
 
   for (const definition of partialSchema.definitions) {
@@ -75,8 +143,16 @@ export function createFullSchema(partialSchema: DocumentNode): GraphQLSchema {
             args: {
               id: { type: GraphQLID },
             },
-            resolve(_: any, {id}: any, context: any) {
-              return context.database.collection(typename).doc(id).get();
+            async resolve(_: any, {id}: any, context: Context) {
+              const result = await context.database.collection(typename).doc(id).get();
+              if (result.exists) {
+                return {
+                  id,
+                  ...result.data(),
+                };
+              } else {
+                  return null;
+              }
             },
           };
         }
@@ -92,15 +168,7 @@ export function createFullSchema(partialSchema: DocumentNode): GraphQLSchema {
       for (const definition of partialSchema.definitions) {
         if (definition.kind === "ObjectTypeDefinition") {
           const typename = definition.name.value;
-          fields[`create${typename}`] = {
-            type: typeMapping[typename],
-            args: {
-              id: { type: GraphQLID },
-            },
-            resolve(_: any, args: any, context: any) {
-              return context.database.collection(typename).doc(args.id).set(args);
-            },
-          };
+          fields[`create${typename}`] = createCreateMutation(definition);
         }
       }
       return fields;
