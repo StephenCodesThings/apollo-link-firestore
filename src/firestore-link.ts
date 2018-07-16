@@ -10,7 +10,7 @@ import {
   execute,
   OperationTypeNode,
 } from "graphql";
-import { createFullSchema } from "./graphql-utils";
+import { createFullSchema } from "./graphql";
 
 export interface Options {
   database: firestore.Firestore;
